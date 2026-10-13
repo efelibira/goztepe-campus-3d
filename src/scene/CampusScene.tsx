@@ -2,11 +2,16 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import { geometryToShapes } from '../data/geoJsonToShape.js'
 import { projectPosition } from '../data/projectCoordinates.js'
+import { createCampusContainment } from '../data/campusBoundary.js'
 import { walkwayToShape } from '../data/walkways.js'
 import { PALETTE } from './palette'
 import { CAMPUS_GROUND_SIZE } from './cameraConfig.js'
 import type { CampusData, ResolvedBuilding } from '../types/campus'
 import BuildingMesh from '../components/BuildingMesh'
+import PlacedObjectsLayer from '../components/PlacedObjectsLayer'
+import PlacementSurface from '../components/PlacementSurface'
+import type { SceneObjectRecord } from '../editor/sceneDocument'
+import type { EditorControlMode } from '../editor/orbitMouseBindings.js'
 
 const GROUND_SIZE = CAMPUS_GROUND_SIZE
 
@@ -14,8 +19,23 @@ type Props = {
   data: CampusData
   buildings: ResolvedBuilding[]
   selectedId: string | null
+  sceneObjects: SceneObjectRecord[]
+  editMode: boolean
+  controlMode: EditorControlMode
+  optionPressed: boolean
+  placementActive: boolean
+  selectedObjectId: string | null
+  transformMode: 'translate' | 'rotate' | 'scale'
   onSelect: (id: string) => void
   onClearSelection: () => void
+  onSelectObject: (id: string) => void
+  onPlaceObject: (position: [number, number, number]) => void
+  onTransformUpdate: (id: string, transform: SceneObjectRecord['transform']) => void
+  onTransformStart: () => void
+  onTransformEnd: () => void
+  onDirectDragStart: (id: string) => boolean
+  onDirectDragEnd: (id: string, position: [number, number, number]) => void
+  onDirectDragCancel: () => void
 }
 
 function Ground({ data }: { data: CampusData }) {
@@ -56,7 +76,13 @@ function Walkways({ data }: { data: CampusData }) {
   </group>
 }
 
-export default function CampusScene({ data, buildings, selectedId, onSelect, onClearSelection }: Props) {
+export default function CampusScene({
+  data, buildings, selectedId, sceneObjects, editMode, controlMode, optionPressed, placementActive, selectedObjectId, transformMode,
+  onSelect, onClearSelection, onSelectObject, onPlaceObject, onTransformUpdate, onTransformStart, onTransformEnd,
+  onDirectDragStart, onDirectDragEnd, onDirectDragCancel,
+}: Props) {
+  const boundary = data.boundary.features[0].geometry
+  const isInsideCampus = useMemo(() => createCampusContainment(boundary), [boundary])
   return (
     <>
       <color attach="background" args={[PALETTE.background]} />
@@ -77,16 +103,35 @@ export default function CampusScene({ data, buildings, selectedId, onSelect, onC
       />
       <Ground data={data} />
       <Walkways data={data} />
+      <PlacementSurface active={editMode && placementActive} boundary={boundary} onPlace={onPlaceObject} />
       <group onPointerMissed={onClearSelection}>
         {buildings.map((building) => (
           <BuildingMesh
             key={building.id}
             building={building}
             selected={selectedId === building.id}
+            interactive={!editMode}
             onSelect={onSelect}
           />
         ))}
       </group>
+      <PlacedObjectsLayer
+        objects={sceneObjects}
+        editable={editMode}
+        transformEnabled={controlMode === 'object'}
+        optionPressed={optionPressed}
+        selectedId={selectedObjectId}
+        placementActive={placementActive}
+        isInsideCampus={isInsideCampus}
+        transformMode={transformMode}
+        onSelect={onSelectObject}
+        onTransformUpdate={onTransformUpdate}
+        onTransformStart={onTransformStart}
+        onTransformEnd={onTransformEnd}
+        onDirectDragStart={onDirectDragStart}
+        onDirectDragEnd={onDirectDragEnd}
+        onDirectDragCancel={onDirectDragCancel}
+      />
       <gridHelper args={[GROUND_SIZE, 30, '#aaaabd', '#d5cfc2']} position={[0, -0.3, 0]} />
     </>
   )

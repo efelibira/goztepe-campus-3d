@@ -3,7 +3,20 @@
 - This is a standalone application. Never import source files at runtime from `goztepe-campus-map`; use only this project's local data copies.
 - Do not modify the separate `goztepe-campus-map` repository or its branches as part of work in this project.
 - Preserve OSM feature IDs (`way/...` and `relation/...`) as building IDs. Normalize the `osm:` prefix only when looking up source overrides.
-- Keep source GeoJSON immutable. Put visual edits in `public/data/building-visual-overrides.json`; put user-placed objects in their own persisted scene document when that feature is added.
+- Keep source GeoJSON immutable. Put visual edits in `public/data/building-visual-overrides.json`; keep user-placed objects in their own versioned persisted scene document.
+- Keep the versioned user scene document separate from source buildings, road geometry, and their override files. Use `src/editor/sceneDocument.js` for validation/import/export and `src/editor/sceneStore.js` for centralized mutations and persistence.
+- Register new procedural object types in `src/editor/objectCatalog.js` and add an independent model component to `src/components/ObjectModels.tsx`. Saved records reference models by `objectType` and `variant`; they must not contain Three.js objects or React component references.
+- Keep placed object transform vectors in local scene meters with Three.js Y as elevation. Persist model-specific settings under the object's `properties` record.
+- Update `public/schemas/scene-document.v1.schema.json` and add tests when changing the saved document shape. Bump the document version for incompatible format changes; do not silently reinterpret old records.
+- Treat localStorage and imported JSON as untrusted input. Validate before mutation and make corrupt saved data recoverable without modifying source data.
+- Keep normal building inspection separate from edit mode. In edit mode provide Camera and Object control modes. In Object mode leave OrbitControls left-drag unmapped except while Option is held; in Camera mode map left-drag to rotate. Keep right-drag mapped to pan and wheel/trackpad zoom enabled in both modes.
+- Selection must remain available in Camera mode, while TransformControls must be absent there. Disable OrbitControls only while TransformControls is actively dragging; placement clicks must not conflict with camera gestures.
+- Do not clear the selected object from Canvas/group `onPointerMissed` while a TransformControls drag is active; the gizmo's native raycast is separate from React Three Fiber's pointer target graph. Ground and walkway meshes should remain non-interactive outside placement.
+- Track Option from keyboard and pointer state, and clear it on blur/hidden-page transitions. A single TransformControls drag must remain one store transaction/undo step.
+- Keep the selected object's numeric position, rotation, and scale controls bound to the saved transform. Convert rotation UI degrees to stored radians; validate finite values, minimum scale, and non-negative Y before a one-field store transaction.
+- Keep placed object model origins on the campus ground plane; constrain translation above ground and preserve the scene store as the only source of saved transforms.
+- Direct dragging is a shared placed-object renderer behavior, never a per-model behavior. Use a horizontal raycast plane, preserve pointer-to-origin X/Z offset and starting Y, reject proposed positions outside the projected campus Polygon/MultiPolygon (including holes), and commit one store transaction after the thresholded drag finishes. Keep temporary pointer movement out of undo history.
+- Release pointer capture and clean up pointerup, pointercancel, blur, and unmount paths. Direct body dragging must be limited to Object edit mode without Option or placement armed, and must yield to TransformControls handles.
 - `displayHeight` is not always measured. Preserve and display its `heightSource`; `placeholder` values are estimates. OSM floor-count conversions are estimates too.
 - Convert WGS84 coordinates through `src/data/projectCoordinates.js`; keep Y as elevation and the campus footprint on the X/Z plane.
 - Polygon interior rings represent holes. Do not drop them when generating `Shape`/`ExtrudeGeometry`; handle every polygon in MultiPolygon features.

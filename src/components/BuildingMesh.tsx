@@ -8,10 +8,11 @@ import { PALETTE } from '../scene/palette'
 type Props = {
   building: ResolvedBuilding
   selected: boolean
+  interactive?: boolean
   onSelect: (id: string) => void
 }
 
-export default function BuildingMesh({ building, selected, onSelect }: Props) {
+export default function BuildingMesh({ building, selected, interactive = true, onSelect }: Props) {
   const geometries = useMemo(() => {
     const shapes = geometryToShapes(building.feature.geometry, projectPosition)
     return shapes.map((shape) => new THREE.ExtrudeGeometry(shape, {
@@ -25,10 +26,10 @@ export default function BuildingMesh({ building, selected, onSelect }: Props) {
   return (
     <group
       rotation={[-Math.PI / 2, 0, 0]}
-      onClick={(event) => {
+      onClick={interactive ? (event) => {
         event.stopPropagation()
         onSelect(building.id)
-      }}
+      } : undefined}
     >
       {geometries.map((geometry, index) => (
         <mesh key={`${building.id}-${index}`} geometry={geometry} castShadow receiveShadow>

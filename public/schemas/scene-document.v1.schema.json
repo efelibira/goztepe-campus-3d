@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://efelibira.github.io/goztepe-campus-3d/schemas/scene-document.v1.schema.json",
+  "title": "Göztepe Campus 3D Scene Document",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "objects"],
+  "properties": {
+    "version": { "const": 1 },
+    "objects": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sceneObject" }
+    }
+  },
+  "$defs": {
+    "vector3": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "positiveScale3": {
+      "type": "array",
+      "items": { "type": "number", "exclusiveMinimum": 0 },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "sceneObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "objectType", "variant", "transform", "properties"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "objectType": { "type": "string", "minLength": 1 },
+        "variant": { "type": "string", "minLength": 1 },
+        "transform": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["position", "rotation", "scale"],
+          "properties": {
+            "position": { "$ref": "#/$defs/vector3" },
+            "rotation": { "$ref": "#/$defs/vector3" },
+            "scale": { "$ref": "#/$defs/positiveScale3" }
+          }
+        },
+        "properties": { "type": "object" }
+      }
+    }
+  }
+}

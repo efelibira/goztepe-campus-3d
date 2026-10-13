@@ -2,9 +2,11 @@ import {
   assertValidSceneDocument,
   createEmptySceneDocument,
   createObjectId,
+  LEGACY_SCENE_STORAGE_KEY,
   parseSceneDocument,
   SCENE_STORAGE_KEY,
   serializeSceneDocument,
+  upgradeSceneDocument,
 } from './sceneDocument.js'
 
 const HISTORY_LIMIT = 100
@@ -23,18 +25,26 @@ function immutableJsonCopy(value) {
 
 /** Small external store; UI frameworks subscribe without owning scene data. */
 export function createSceneObjectStore({ storage, storageKey = SCENE_STORAGE_KEY, initialDocument, historyLimit = HISTORY_LIMIT } = {}) {
-  let document = immutableJsonCopy(assertValidSceneDocument(initialDocument ?? createEmptySceneDocument()))
+  let document = immutableJsonCopy(upgradeSceneDocument(assertValidSceneDocument(initialDocument ?? createEmptySceneDocument())))
   let persistenceError = null
   const past = [], future = [], listeners = new Set()
   let transactionBase = null
 
   if (storage) {
-    try {
-      const saved = storage.getItem(storageKey)
-      if (saved !== null) document = immutableJsonCopy(parseSceneDocument(saved))
-    } catch (error) {
-      persistenceError = `Kaydedilmiş sahne yüklenemedi; boş sahne kullanılacak. ${error instanceof Error ? error.message : ''}`.trim()
+    let loadError = null
+    const storageKeys = storageKey === SCENE_STORAGE_KEY ? [storageKey, LEGACY_SCENE_STORAGE_KEY] : [storageKey]
+    for (const key of storageKeys) {
+      try {
+        const saved = storage.getItem(key)
+        if (saved === null) continue
+        document = immutableJsonCopy(parseSceneDocument(saved))
+        if (loadError) persistenceError = `Yeni kayıt okunamadı; eski kayıt yüklendi. ${loadError}`
+        break
+      } catch (error) {
+        loadError = error instanceof Error ? error.message : 'geçersiz kayıt'
+      }
     }
+    if (loadError && !persistenceError) persistenceError = `Kaydedilmiş sahne yüklenemedi; boş sahne kullanılacak. ${loadError}`
   }
 
   let snapshot
@@ -105,6 +115,30 @@ export function createSceneObjectStore({ storage, storageKey = SCENE_STORAGE_KEY
       const objects = [...document.objects]
       objects[index] = updated
       commit({ ...document, objects })
+    },
+    updateBuildingOverride(id, patch) {
+      if (typeof id !== 'string' || !id.trim()) throw new Error('Bina kimliği boş olamaz.')
+      const current = document.buildingOverrides[id] ?? {}
+      const updated = { ...current }
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === undefined) delete updated[key]
+        else updated[key] = value
+      }
+      if (JSON.stringify(current) === JSON.stringify(updated)) return
+      const buildingOverrides = { ...document.buildingOverrides }
+      if (Object.keys(updated).length) buildingOverrides[id] = updated
+      else delete buildingOverrides[id]
+      commit({ ...document, buildingOverrides })
+    },
+    resetBuildingOverride(id, field) {
+      const current = document.buildingOverrides[id]
+      if (!current || !Object.hasOwn(current, field)) return
+      const updated = { ...current }
+      delete updated[field]
+      const buildingOverrides = { ...document.buildingOverrides }
+      if (Object.keys(updated).length) buildingOverrides[id] = updated
+      else delete buildingOverrides[id]
+      commit({ ...document, buildingOverrides })
     },
     removeObject(id) {
       if (!document.objects.some((object) => object.id === id)) return false

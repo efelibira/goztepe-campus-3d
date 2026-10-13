@@ -82,11 +82,31 @@ export type BuildingVisualOverride = {
   heightMeters?: number
   heightConfidence?: 'verified' | 'estimated'
   color?: string
+  roofColor?: string
 }
 
 export type BuildingVisualOverrides = {
   version: number
   buildings: Record<string, BuildingVisualOverride>
+}
+
+export type BuildingModelOverride = {
+  type: 'glb'
+  assetId: string
+  scale: [number, number, number]
+  /** Three.js Euler angles in radians, in XYZ order. */
+  rotation: [number, number, number]
+  /** Local scene-meter offset from the footprint-center ground origin. */
+  offset: [number, number, number]
+}
+
+export type BuildingEditOverride = {
+  name?: string
+  heightMeters?: number
+  facadeColor?: string
+  roofColor?: string
+  visible?: boolean
+  model?: BuildingModelOverride
 }
 
 export type CampusData = {
@@ -106,5 +126,8 @@ export type ResolvedBuilding = {
   heightLabel: string
   confidenceLabel: string
   color?: string
+  roofColor?: string
+  visible: boolean
+  model?: BuildingModelOverride
   feature: GeoJsonFeature<CampusGeometry, BuildingProperties>
 }

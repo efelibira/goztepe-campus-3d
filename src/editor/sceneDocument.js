@@ -1,10 +1,11 @@
 import { getObjectTypeDefinition } from './objectCatalog.js'
 
-export const SCENE_DOCUMENT_VERSION = 1
-export const SCENE_STORAGE_KEY = 'goztepe-campus-3d:scene:v1'
+export const SCENE_DOCUMENT_VERSION = 2
+export const SCENE_STORAGE_KEY = 'goztepe-campus-3d:scene:v2'
+export const LEGACY_SCENE_STORAGE_KEY = 'goztepe-campus-3d:scene:v1'
 
 export function createEmptySceneDocument() {
-  return { version: SCENE_DOCUMENT_VERSION, objects: [] }
+  return { version: SCENE_DOCUMENT_VERSION, objects: [], buildingOverrides: {} }
 }
 
 function isRecord(value) {
@@ -34,13 +35,54 @@ function onlyKeys(record, keys) {
   return Object.keys(record).every((key) => keys.includes(key))
 }
 
+const isColor = (value) => typeof value === 'string' && /^#[\da-f]{6}$/i.test(value)
+const isAssetId = (value) => typeof value === 'string' && /^[a-z\d][a-z\d._-]*$/i.test(value) && !value.includes('..')
+
+function validateModelOverride(model, label, errors) {
+  if (!isRecord(model)) { errors.push(`${label} bir nesne olmalı.`); return }
+  if (!onlyKeys(model, ['type', 'assetId', 'scale', 'rotation', 'offset'])) errors.push(`${label} şema dışı alan içeriyor.`)
+  if (model.type !== 'glb') errors.push(`${label}.type yalnızca 'glb' olabilir.`)
+  if (!isAssetId(model.assetId)) {
+    errors.push(`${label}.assetId geçerli bir varlık kimliği olmalı.`)
+  }
+  if (!isVector(model.scale, true)) errors.push(`${label}.scale üç pozitif sayı içermeli.`)
+  if (!isVector(model.rotation)) errors.push(`${label}.rotation üç sonlu sayı içermeli.`)
+  if (!isVector(model.offset)) errors.push(`${label}.offset üç sonlu sayı içermeli.`)
+}
+
+function validateBuildingOverrides(value, errors) {
+  if (!isRecord(value)) { errors.push('buildingOverrides bir nesne olmalı.'); return }
+  for (const [id, override] of Object.entries(value)) {
+    const label = `buildingOverrides[${id}]`
+    if (!id.trim()) errors.push('Bina override kimliği boş olamaz.')
+    if (!isRecord(override)) { errors.push(`${label} bir nesne olmalı.`); continue }
+    if (!onlyKeys(override, ['name', 'heightMeters', 'facadeColor', 'roofColor', 'visible', 'model'])) errors.push(`${label} şema dışı alan içeriyor.`)
+    if (Object.hasOwn(override, 'name') && (typeof override.name !== 'string' || !override.name.trim())) errors.push(`${label}.name boş olmayan bir metin olmalı.`)
+    if (Object.hasOwn(override, 'heightMeters') && (!Number.isFinite(override.heightMeters) || override.heightMeters <= 0)) errors.push(`${label}.heightMeters pozitif ve sonlu olmalı.`)
+    if (Object.hasOwn(override, 'facadeColor') && !isColor(override.facadeColor)) errors.push(`${label}.facadeColor #RRGGBB biçiminde olmalı.`)
+    if (Object.hasOwn(override, 'roofColor') && !isColor(override.roofColor)) errors.push(`${label}.roofColor #RRGGBB biçiminde olmalı.`)
+    if (Object.hasOwn(override, 'visible') && typeof override.visible !== 'boolean') errors.push(`${label}.visible boolean olmalı.`)
+    if (Object.hasOwn(override, 'model')) validateModelOverride(override.model, `${label}.model`, errors)
+  }
+}
+
+export function upgradeSceneDocument(value) {
+  assertValidSceneDocument(value)
+  if (value.version === 1) return { version: SCENE_DOCUMENT_VERSION, objects: value.objects, buildingOverrides: {} }
+  return value
+}
+
 export function validateSceneDocument(value) {
   const errors = []
   if (!isRecord(value)) return { valid: false, errors: ['Belge bir JSON nesnesi olmalı.'] }
-  if (!onlyKeys(value, ['version', 'objects'])) errors.push('Belgede şema dışı alan var.')
-  if (value.version !== SCENE_DOCUMENT_VERSION) errors.push(`Desteklenmeyen belge sürümü: ${String(value.version)}.`)
+  const supportedVersion = value.version === 1 || value.version === SCENE_DOCUMENT_VERSION
+  if (!supportedVersion) errors.push(`Desteklenmeyen belge sürümü: ${String(value.version)}.`)
+  const allowedKeys = value.version === 1 ? ['version', 'objects'] : ['version', 'objects', 'buildingOverrides']
+  if (!onlyKeys(value, allowedKeys)) errors.push('Belgede şema dışı alan var.')
   if (!Array.isArray(value.objects)) errors.push('objects alanı bir dizi olmalı.')
   if (!Array.isArray(value.objects)) return { valid: false, errors }
+
+  if (value.version === SCENE_DOCUMENT_VERSION) validateBuildingOverrides(value.buildingOverrides, errors)
 
   const ids = new Set()
   for (const [index, object] of value.objects.entries()) {
@@ -60,7 +102,14 @@ export function validateSceneDocument(value) {
       if (!isVector(object.transform.scale, true)) errors.push(`${label}.transform.scale üç pozitif sayı içermeli.`)
     }
     if (!isRecord(object.properties)) errors.push(`${label}.properties bir nesne olmalı.`)
-    else if (!isJsonValue(object.properties)) errors.push(`${label}.properties yalnızca geçerli JSON değerleri içermeli.`)
+    else {
+      if (!isJsonValue(object.properties)) errors.push(`${label}.properties yalnızca geçerli JSON değerleri içermeli.`)
+      if (object.objectType === 'glb-model') {
+        if (!isAssetId(object.variant)) errors.push(`${label}.variant GLB katalog kimliği olmalı.`)
+        if (typeof object.properties.name !== 'string' || !object.properties.name.trim()) errors.push(`${label}.properties.name boş olmayan bir metin olmalı.`)
+        if (!onlyKeys(object.properties, ['name'])) errors.push(`${label}.properties GLB modeli için yalnızca ad alanını içerebilir; varlık dosyası katalogda kalmalı.`)
+      }
+    }
   }
   return { valid: errors.length === 0, errors }
 }
@@ -75,12 +124,12 @@ export function parseSceneDocument(text) {
   let parsed
   try { parsed = JSON.parse(text) }
   catch (error) { throw new Error(`Sahne JSON'u okunamadı: ${error instanceof Error ? error.message : 'geçersiz JSON'}`) }
-  return assertValidSceneDocument(parsed)
+  return upgradeSceneDocument(assertValidSceneDocument(parsed))
 }
 
 export function serializeSceneDocument(document) {
-  assertValidSceneDocument(document)
-  return JSON.stringify(document, null, 2)
+  const current = upgradeSceneDocument(document)
+  return JSON.stringify(current, null, 2)
 }
 
 export function createObjectId() {
@@ -92,7 +141,8 @@ export function createSceneObject(objectType, options = {}) {
   const definition = getObjectTypeDefinition(objectType)
   if (!definition) throw new Error(`Kayıtlı sahne nesnesi türü bulunamadı: ${objectType}`)
   const variant = options.variant ?? definition.defaultVariant
-  if (!definition.variants.includes(variant)) throw new Error(`'${objectType}' türünde '${variant}' modeli tanımlı değil.`)
+  const dynamicGlbVariant = objectType === 'glb-model' && isAssetId(variant)
+  if (!definition.variants.includes(variant) && !dynamicGlbVariant) throw new Error(`'${objectType}' türünde '${variant}' modeli tanımlı değil.`)
   return {
     id: options.id ?? createObjectId(),
     objectType,

@@ -6,7 +6,7 @@ import type { ChangeEvent } from 'react'
 import CampusScene from './scene/CampusScene'
 import { loadCampusData } from './data/loadCampusData'
 import { resolveBuilding } from './data/resolveBuilding'
-import type { CampusData, ResolvedBuilding } from './types/campus'
+import type { CampusData, ResolvedBuilding, BuildingEditOverride } from './types/campus'
 import { CAMERA_CONFIG, CAMERA_DISTANCE_LIMITS } from './scene/cameraConfig.js'
 import { createSceneObjectStore } from './editor/sceneStore.js'
 import { createSceneObject } from './editor/sceneDocument.js'
@@ -16,7 +16,16 @@ import type { EditorControlMode } from './editor/orbitMouseBindings.js'
 import { applyNumericTransformEdit } from './editor/numericTransform.js'
 import type { NumericTransformField } from './editor/numericTransform.js'
 import NumericTransformPanel from './components/NumericTransformPanel'
+import BuildingEditPanel from './components/BuildingEditPanel'
+import SceneObjectNameField from './components/SceneObjectNameField'
+import ModelImportPanel from './components/ModelImportPanel'
 import { createCampusContainment } from './data/campusBoundary.js'
+import { loadGlbModelCatalog } from './data/modelCatalog.js'
+import type { GlbCatalogAsset } from './data/modelCatalog'
+
+const PROCEDURAL_OBJECT_TYPES = Object.entries(OBJECT_TYPE_CATALOG)
+  .filter(([, definition]) => definition.renderer === 'procedural')
+  .map(([type]) => type)
 
 function getLocalStorageSafely(): Storage | undefined {
   try { return window.localStorage }
@@ -25,6 +34,8 @@ function getLocalStorageSafely(): Storage | undefined {
 
 export default function App() {
   const [data, setData] = useState<CampusData | null>(null)
+  const [modelAssets, setModelAssets] = useState<GlbCatalogAsset[]>([])
+  const [modelCatalogError, setModelCatalogError] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [editorError, setEditorError] = useState('')
@@ -53,7 +64,29 @@ export default function App() {
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    loadGlbModelCatalog()
+      .then((assets) => { if (!cancelled) setModelAssets(assets) })
+      .catch((cause: unknown) => {
+        if (!cancelled) setModelCatalogError(cause instanceof Error ? cause.message : 'GLB kataloğu yüklenemedi.')
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  const modelAssetsById = useMemo(() => Object.fromEntries(modelAssets.map((asset) => [asset.id, asset])), [modelAssets])
+
   const buildings = useMemo<ResolvedBuilding[]>(() => {
+    if (!data) return []
+    return data.buildings.features.map((feature) => resolveBuilding(
+      feature,
+      data.overrides,
+      data.visualOverrides.buildings,
+      sceneState.document.buildingOverrides,
+    ))
+  }, [data, sceneState.document.buildingOverrides])
+
+  const defaultBuildings = useMemo<ResolvedBuilding[]>(() => {
     if (!data) return []
     return data.buildings.features.map((feature) => resolveBuilding(
       feature,
@@ -63,6 +96,8 @@ export default function App() {
   }, [data])
 
   const selected = buildings.find((building) => building.id === selectedId) ?? null
+  const selectedDefault = defaultBuildings.find((building) => building.id === selectedId) ?? null
+  const selectedBuildingOverride = selectedId ? sceneState.document.buildingOverrides[selectedId] : undefined
   const estimatedCount = buildings.filter((building) => building.confidenceLabel !== 'Doğrulanmış yükseklik düzeltmesi').length
   const selectedObject = sceneState.document.objects.find((object) => object.id === selectedObjectId) ?? null
   const isInsideCampus = useMemo(() => {
@@ -83,7 +118,7 @@ export default function App() {
 
       const key = event.key.toLowerCase()
       if (/^[1-4]$/.test(event.key)) {
-        const objectType = Object.keys(OBJECT_TYPE_CATALOG)[Number(event.key) - 1]
+        const objectType = PROCEDURAL_OBJECT_TYPES[Number(event.key) - 1]
         if (objectType) {
           event.preventDefault()
           setPlacementType(objectType)
@@ -179,7 +214,12 @@ export default function App() {
   const placeObject = (position: [number, number, number]) => {
     if (!placementType) return
     try {
-      const object = createSceneObject(placementType, { transform: { position } })
+      const assetId = placementType.startsWith('glb-model:') ? placementType.slice('glb-model:'.length) : null
+      const asset = assetId ? modelAssetsById[assetId] : null
+      if (assetId && !asset) throw new Error('Seçilen GLB modeli katalogda bulunamadı.')
+      const object = asset
+        ? createSceneObject('glb-model', { variant: asset.id, transform: { position }, properties: { name: asset.name } })
+        : createSceneObject(placementType, { transform: { position } })
       const id = sceneStore.addObject(object)
       setSelectedObjectId(id)
       setSelectedId(null)
@@ -224,6 +264,36 @@ export default function App() {
     setSelectedObjectId(null)
   }
 
+  const updateSelectedBuilding = (patch: Partial<BuildingEditOverride>) => {
+    if (!selectedId) return
+    try {
+      sceneStore.updateBuildingOverride(selectedId, patch)
+      setEditorError('')
+    } catch (cause) {
+      setEditorError(cause instanceof Error ? cause.message : 'Bina düzenlemesi kaydedilemedi.')
+    }
+  }
+
+  const resetSelectedBuildingField = (field: keyof BuildingEditOverride) => {
+    if (!selectedId) return
+    try {
+      sceneStore.resetBuildingOverride(selectedId, field)
+      setEditorError('')
+    } catch (cause) {
+      setEditorError(cause instanceof Error ? cause.message : 'Bina değeri sıfırlanamadı.')
+    }
+  }
+
+  const selectBuilding = (id: string) => {
+    setSelectedId(id)
+    setSelectedObjectId(null)
+  }
+
+  const selectPlacedObject = (id: string) => {
+    setSelectedObjectId(id)
+    setSelectedId(null)
+  }
+
   const endTransform = () => {
     sceneStore.endTransaction()
     setTransformDragging(false)
@@ -256,8 +326,8 @@ export default function App() {
           // TransformControls handles are native raycasts outside the R3F event graph.
           // Do not treat their drag/release as an empty-scene click and detach the gizmo.
           if (transformDragging) return
-          if (editMode) setSelectedObjectId(null)
-          else setSelectedId(null)
+          setSelectedObjectId(null)
+          setSelectedId(null)
         }}
       >
         <Suspense fallback={null}>
@@ -265,6 +335,7 @@ export default function App() {
             <CampusScene
               data={data}
               buildings={buildings}
+              modelAssets={modelAssetsById}
               selectedId={selectedId}
               sceneObjects={sceneState.document.objects}
               editMode={editMode}
@@ -273,13 +344,13 @@ export default function App() {
               placementActive={placementType !== null}
               selectedObjectId={selectedObjectId}
               transformMode={transformMode}
-              onSelect={setSelectedId}
+              onSelect={selectBuilding}
               onClearSelection={() => {
                 if (transformDragging) return
-                if (editMode) setSelectedObjectId(null)
-                else setSelectedId(null)
+                setSelectedObjectId(null)
+                setSelectedId(null)
               }}
-              onSelectObject={setSelectedObjectId}
+              onSelectObject={selectPlacedObject}
               onPlaceObject={placeObject}
               onTransformUpdate={(id, transform) => sceneStore.updateObject(id, { transform })}
               onTransformStart={() => { sceneStore.beginTransaction(); setTransformDragging(true) }}
@@ -357,17 +428,45 @@ export default function App() {
         </div>
         <p className="editor-hint">{controlMode === 'object' ? 'Nesne seçimi ve dönüşüm etkin. Option basılıyken sol sürükleme kamerayı döndürür.' : 'Sol sürükleme kamerayı döndürür; nesneleri seçebilir, ancak dönüştüremezsiniz.'}</p>
         <div className="object-palette">
-          {Object.entries(OBJECT_TYPE_CATALOG).map(([type, definition], index) => <button
+          {PROCEDURAL_OBJECT_TYPES.map((type, index) => {
+            const definition = OBJECT_TYPE_CATALOG[type]
+            return <button
             key={type}
             className={placementType === type ? 'tool-button active' : 'tool-button'}
             onClick={() => { setPlacementType((current) => current === type ? null : type); setSelectedObjectId(null) }}
-          ><kbd>{index + 1}</kbd> + {definition.label}</button>)}
+          ><kbd>{index + 1}</kbd> + {definition.label}</button>
+          })}
+        </div>
+        {import.meta.env.DEV && <ModelImportPanel disabled={transformDragging} onImported={(assets) => {
+          setModelAssets(assets)
+          setModelCatalogError('')
+        }} />}
+        <div className="glb-palette" aria-label="GLB varlıkları">
+          <strong>GLB modelleri</strong>
+          {modelAssets.map((asset) => <button
+            key={asset.id}
+            className={placementType === `glb-model:${asset.id}` ? 'tool-button active' : 'tool-button'}
+            onClick={() => { setPlacementType((current) => current === `glb-model:${asset.id}` ? null : `glb-model:${asset.id}`); setSelectedObjectId(null) }}
+          >{asset.name}</button>)}
+          {!modelAssets.length && <small>{modelCatalogError || 'Katalog boş. Yerel geliştirme ortamında Model İçe Aktar alanından GLB ekleyin.'}</small>}
         </div>
         <p className="editor-hint">{placementType ? 'Sürekli yerleştirme açık. Her tıklama yeni bir nesne ekler; Esc aracı kapatır.' : 'Bir nesne seç veya yerleştirmek için tür seç.'}</p>
         <p className="editor-hint shortcut-hint">1–4 tür seç · D çoğalt · Z geri al · Y yinele · Backspace sil</p>
+        {editMode && selected && selectedDefault && <BuildingEditPanel
+          building={selected}
+          defaults={selectedDefault}
+          override={selectedBuildingOverride}
+          models={modelAssets}
+          onUpdate={updateSelectedBuilding}
+          onReset={resetSelectedBuildingField}
+        />}
         {selectedObject && <div className="selected-object-info">
-          <strong>{OBJECT_TYPE_CATALOG[selectedObject.objectType]?.label ?? selectedObject.objectType}</strong>
+          <strong>{typeof selectedObject.properties.name === 'string' ? selectedObject.properties.name : OBJECT_TYPE_CATALOG[selectedObject.objectType]?.label ?? selectedObject.objectType}</strong>
           <code>{selectedObject.id}</code>
+          {selectedObject.objectType === 'glb-model' && <SceneObjectNameField
+            name={typeof selectedObject.properties.name === 'string' ? selectedObject.properties.name : ''}
+            onCommit={(name) => sceneStore.updateObject(selectedObject.id, { properties: { name } })}
+          />}
           <div className="transform-modes" aria-label="Dönüşüm aracı">
             {([['translate', 'Taşı'], ['rotate', 'Döndür'], ['scale', 'Ölçekle']] as const).map(([mode, label]) => <button key={mode} className={transformMode === mode ? 'tool-button active' : 'tool-button'} onClick={() => setTransformMode(mode)}>{label}</button>)}
           </div>

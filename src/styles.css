@@ -47,6 +47,9 @@ h1 { margin: 6px 0; font-size: 21px; line-height: 1.15; }
 .editor-panel-heading { display: flex; align-items: center; justify-content: space-between; padding-right: 34px; }
 .editor-panel-heading strong { display: block; margin-top: 4px; color: #42445f; font-size: 15px; }
 .object-palette { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.glb-palette { display: grid; gap: 6px; padding: 9px; border: 1px solid rgba(85, 88, 121, .12); border-radius: 10px; background: rgba(247, 243, 232, .8); }
+.glb-palette > strong { color: #68697e; font-size: 10px; }
+.glb-palette > small { color: #858394; font-size: 9px; line-height: 1.45; }
 .object-palette kbd { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-right: 3px; border: 1px solid currentColor; border-radius: 5px; font: inherit; font-size: 9px; opacity: .8; }
 .control-mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; border-radius: 11px; background: #ece7dc; }
 .control-mode-switch .tool-button { border-color: transparent; background: transparent; }
@@ -57,7 +60,35 @@ h1 { margin: 6px 0; font-size: 21px; line-height: 1.15; }
 .editor-hint { margin: 0; color: #727184; font-size: 11px; line-height: 1.45; }
 .shortcut-hint { padding-top: 2px; font-size: 10px; }
 .selected-object-info { display: grid; gap: 8px; padding: 11px; border: 1px solid rgba(85, 88, 121, .12); border-radius: 11px; background: #f7f3e8; color: #45465e; font-size: 12px; }
+.building-edit-panel { display: grid; gap: 9px; padding: 12px; border: 1px solid rgba(85, 88, 121, .18); border-radius: 11px; background: #f7f3e8; color: #45465e; }
+.building-edit-heading { display: grid; gap: 3px; }
+.building-edit-heading strong { font-size: 12px; }
+.building-edit-heading small { overflow-wrap: anywhere; color: #77778c; font-size: 9px; }
+.building-edit-height-confidence { line-height: 1.4; }
+.building-edit-field { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 7px; color: #68697e; font-size: 10px; }
+.building-edit-field > span { font-weight: 700; }
+.building-edit-field input[type="text"], .building-edit-field input[type="number"] { grid-column: 1 / -1; width: 100%; min-width: 0; height: 33px; padding: 6px 8px; border: 1px solid rgba(85, 88, 121, .18); border-radius: 7px; background: #fffdf8; color: #41435c; font: inherit; font-size: 11px; }
+.building-edit-field select { grid-column: 1 / -1; width: 100%; min-width: 0; height: 33px; padding: 6px 8px; border: 1px solid rgba(85, 88, 121, .18); border-radius: 7px; background: #fffdf8; color: #41435c; font: inherit; font-size: 11px; }
+.building-edit-field input:focus { outline: 2px solid rgba(85, 88, 121, .28); border-color: #555879; }
+.building-edit-field input[aria-invalid="true"] { border-color: #aa5b52; }
+.building-edit-field input[type="color"] { grid-column: 2; width: 42px; height: 29px; padding: 2px; border: 1px solid rgba(85, 88, 121, .18); border-radius: 6px; background: #fffdf8; }
+.building-edit-field.color-field { grid-template-columns: minmax(0, 1fr) auto auto; }
+.reset-building-field { min-height: 26px; padding: 4px 7px; border: 1px solid rgba(85, 88, 121, .14); border-radius: 6px; background: #f2eddf; color: #555879; font-size: 9px; cursor: pointer; }
+.reset-building-field:disabled { opacity: .42; cursor: not-allowed; }
+.building-edit-visibility { display: flex; align-items: center; gap: 7px; color: #68697e; font-size: 10px; }
+.building-edit-visibility span { flex: 1; }
+.building-edit-note, .building-edit-error { margin: 0; color: #858394; font-size: 9px; line-height: 1.4; }
+.building-model-assignment { display: grid; gap: 7px; padding-top: 9px; border-top: 1px solid rgba(85, 88, 121, .12); }
+.building-model-asset-id { overflow-wrap: anywhere; color: #77778c; font-size: 9px; }
+.building-model-vector { min-width: 0; margin: 0; padding: 0; border: 0; }
+.building-model-vector legend { margin-bottom: 4px; color: #68697e; font-size: 9px; font-weight: 700; }
+.building-model-vector > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.building-model-vector label { display: grid; gap: 3px; color: #7c7c8d; font-size: 8px; }
+.building-model-vector input { width: 100%; min-width: 0; height: 29px; padding: 4px; border: 1px solid rgba(85, 88, 121, .18); border-radius: 6px; background: #fffdf8; color: #41435c; font: inherit; font-size: 10px; font-variant-numeric: tabular-nums; }
+.building-edit-error { grid-column: 1 / -1; color: #914e49; }
 .selected-object-info code { overflow-wrap: anywhere; color: #77778c; font-size: 9px; }
+.scene-object-name-field { display: grid; gap: 4px; color: #68697e; font-size: 9px; font-weight: 700; }
+.scene-object-name-field input { width: 100%; height: 31px; padding: 5px 7px; border: 1px solid rgba(85, 88, 121, .18); border-radius: 7px; background: #fffdf8; color: #41435c; font: inherit; font-size: 11px; }
 .numeric-transform-panel { display: grid; gap: 7px; }
 .numeric-transform-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .numeric-transform-row legend { grid-column: 1 / -1; margin-bottom: 1px; color: #68697e; font-size: 10px; font-weight: 700; }
@@ -84,3 +115,11 @@ h1 { margin: 6px 0; font-size: 21px; line-height: 1.15; }
   .estimate-note { right: 12px; bottom: 12px; max-width: 44vw; text-align: right; }
   .attribution { left: 12px; right: auto; bottom: 12px; gap: 4px; font-size: 8px; }
 }
+
+.model-import, .model-import-preview { display: grid; gap: 8px; }
+.model-import { border-top: 1px solid #ded3c4; padding-top: 12px; margin-top: 12px; }
+.model-dropzone { display: grid; gap: 8px; padding: 12px; border: 1px dashed #98a1bc; border-radius: 8px; background: #f4ebd340; }
+.model-dropzone.drag-over { background: #ded3c4; border-color: #555879; }
+.model-import small { line-height: 1.5; overflow-wrap: anywhere; }
+.model-import-preview label { display: grid; gap: 4px; }
+.model-import-preview input { box-sizing: border-box; width: 100%; min-height: 36px; padding: 6px 8px; border: 1px solid #98a1bc; border-radius: 6px; color: #555879; background: #fff; font: inherit; }

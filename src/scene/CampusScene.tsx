@@ -12,6 +12,7 @@ import PlacedObjectsLayer from '../components/PlacedObjectsLayer'
 import PlacementSurface from '../components/PlacementSurface'
 import type { SceneObjectRecord } from '../editor/sceneDocument'
 import type { EditorControlMode } from '../editor/orbitMouseBindings.js'
+import type { GlbCatalogAsset } from '../data/modelCatalog'
 
 const GROUND_SIZE = CAMPUS_GROUND_SIZE
 
@@ -20,6 +21,7 @@ type Props = {
   buildings: ResolvedBuilding[]
   selectedId: string | null
   sceneObjects: SceneObjectRecord[]
+  modelAssets: Record<string, GlbCatalogAsset>
   editMode: boolean
   controlMode: EditorControlMode
   optionPressed: boolean
@@ -78,7 +80,7 @@ function Walkways({ data }: { data: CampusData }) {
 }
 
 export default function CampusScene({
-  data, buildings, selectedId, sceneObjects, editMode, controlMode, optionPressed, placementActive, selectedObjectId, transformMode,
+  data, buildings, selectedId, sceneObjects, modelAssets, editMode, controlMode, optionPressed, placementActive, selectedObjectId, transformMode,
   onSelect, onClearSelection, onSelectObject, onPlaceObject, onTransformUpdate, onTransformStart, onTransformEnd,
   onTransformCancel, onDirectDragStart, onDirectDragEnd, onDirectDragCancel,
 }: Props) {
@@ -110,14 +112,16 @@ export default function CampusScene({
           <BuildingMesh
             key={building.id}
             building={building}
+            modelAssets={modelAssets}
             selected={selectedId === building.id}
-            interactive={!editMode}
+            interactive
             onSelect={onSelect}
           />
         ))}
       </group>
       <PlacedObjectsLayer
         objects={sceneObjects}
+        modelAssets={modelAssets}
         editable={editMode}
         transformEnabled={controlMode === 'object'}
         optionPressed={optionPressed}

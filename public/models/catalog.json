@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "binadeneme",
+      "name": "Bina Deneme",
+      "file": "binadeneme.glb"
+    }
+  ]
+}

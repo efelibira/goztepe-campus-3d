@@ -1,4 +1,4 @@
-import type { SceneDocument, SceneObjectRecord } from './sceneDocument'
+import type { BuildingEditOverride, SceneDocument, SceneObjectRecord } from './sceneDocument'
 export type SceneStoreSnapshot = {
   document: SceneDocument
   canUndo: boolean
@@ -17,6 +17,8 @@ export type SceneObjectStore = {
   cancelTransaction: () => boolean
   addObject: (object: Omit<SceneObjectRecord, 'id'> & { id?: string }) => string
   updateObject: (id: string, patch: SceneObjectPatch) => void
+  updateBuildingOverride: (id: string, patch: Partial<BuildingEditOverride>) => void
+  resetBuildingOverride: (id: string, field: keyof BuildingEditOverride) => void
   removeObject: (id: string) => boolean
   undo: () => boolean
   redo: () => boolean

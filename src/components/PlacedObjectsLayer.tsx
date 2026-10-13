@@ -1,4 +1,5 @@
-import { lazy, Suspense } from 'react'
+import { Component, lazy, Suspense } from 'react'
+import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { TransformControls } from '@react-three/drei'
@@ -8,6 +9,8 @@ import { OBJECT_MODEL_REGISTRY } from './ObjectModels'
 import type { SceneObjectRecord, SceneObjectTransform } from '../editor/sceneDocument'
 import { getObjectTypeDefinition } from '../editor/objectCatalog.js'
 import { hasDirectDragThreshold, positionFromGroundDrag } from '../editor/groundPlaneDrag.js'
+import type { GlbCatalogAsset } from '../data/modelCatalog'
+import { getGlbCatalogAsset } from '../data/modelCatalog.js'
 
 function UnavailableModel() {
   return <mesh position={[0, 0.5, 0]}>
@@ -16,10 +19,17 @@ function UnavailableModel() {
   </mesh>
 }
 
+class GlbAssetErrorBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  render() { return this.state.failed ? this.props.fallback : this.props.children }
+}
+
 const GLBObjectModel = lazy(() => import('./GLBObjectModel'))
 
 export type PlacedObjectsLayerProps = {
   objects: SceneObjectRecord[]
+  modelAssets: Record<string, GlbCatalogAsset>
   editable: boolean
   transformEnabled: boolean
   optionPressed: boolean
@@ -38,17 +48,21 @@ export type PlacedObjectsLayerProps = {
 }
 
 export default function PlacedObjectsLayer({
-  objects, editable, transformEnabled, optionPressed, selectedId, placementActive, isInsideCampus, transformMode,
+  objects, modelAssets, editable, transformEnabled, optionPressed, selectedId, placementActive, isInsideCampus, transformMode,
   onSelect, onTransformUpdate, onTransformStart, onTransformEnd, onTransformCancel, onDirectDragStart, onDirectDragEnd, onDirectDragCancel,
 }: PlacedObjectsLayerProps) {
   return <group>
     {objects.map((object) => {
       const definition = getObjectTypeDefinition(object.objectType)
       const typeModels = OBJECT_MODEL_REGISTRY[object.objectType]
-      const model = typeModels?.[object.variant] ?? typeModels?.[definition?.defaultVariant ?? '']
+      const catalogAsset = object.objectType === 'glb-model' ? getGlbCatalogAsset(object.variant, modelAssets) : null
+      const model = catalogAsset
+        ? { kind: 'gltf' as const, assetUrl: catalogAsset.url }
+        : typeModels?.[object.variant] ?? typeModels?.[definition?.defaultVariant ?? '']
       return <PlacedObject
         key={object.id}
         object={object}
+        displayName={typeof object.properties.name === 'string' ? object.properties.name : undefined}
         model={model}
         editable={editable}
         transformEnabled={transformEnabled}
@@ -70,13 +84,14 @@ export default function PlacedObjectsLayer({
   </group>
 }
 
-type PlacedObjectProps = Omit<PlacedObjectsLayerProps, 'objects' | 'selectedId'> & {
+type PlacedObjectProps = Omit<PlacedObjectsLayerProps, 'objects' | 'selectedId' | 'modelAssets'> & {
   object: SceneObjectRecord
+  displayName?: string
   model: (typeof OBJECT_MODEL_REGISTRY)[string][string] | undefined
   selected: boolean
 }
 
-function PlacedObject({ object, model, editable, transformEnabled, optionPressed, selected, placementActive, isInsideCampus, transformMode, onSelect, onTransformUpdate, onTransformStart, onTransformEnd, onTransformCancel, onDirectDragStart, onDirectDragEnd, onDirectDragCancel }: PlacedObjectProps) {
+function PlacedObject({ object, displayName, model, editable, transformEnabled, optionPressed, selected, placementActive, isInsideCampus, transformMode, onSelect, onTransformUpdate, onTransformStart, onTransformEnd, onTransformCancel, onDirectDragStart, onDirectDragEnd, onDirectDragCancel }: PlacedObjectProps) {
   const objectRef = useRef<THREE.Group>(null!)
   const transformControlsRef = useRef<TransformControlsImpl>(null)
   const transformStartRef = useRef<SceneObjectTransform | null>(null)
@@ -286,6 +301,7 @@ function PlacedObject({ object, model, editable, transformEnabled, optionPressed
       position={object.transform.position}
       rotation={object.transform.rotation}
       scale={object.transform.scale}
+      name={displayName ?? object.objectType}
       userData={{ sceneObjectId: object.id, objectType: object.objectType, variant: object.variant }}
       onPointerDown={beginDirectDrag}
       onClick={editable ? (event) => {
@@ -294,7 +310,7 @@ function PlacedObject({ object, model, editable, transformEnabled, optionPressed
       } : undefined}
     >
       {!model ? <UnavailableModel /> : model.kind === 'gltf'
-        ? <Suspense fallback={<UnavailableModel />}><GLBObjectModel assetUrl={model.assetUrl} /></Suspense>
+        ? <GlbAssetErrorBoundary key={model.assetUrl} fallback={<UnavailableModel />}><Suspense fallback={<UnavailableModel />}><GLBObjectModel assetUrl={model.assetUrl} /></Suspense></GlbAssetErrorBoundary>
         : <model.component properties={object.properties} />}
     </group>
     {editable && transformEnabled && !optionPressed && selected && !placementActive && <TransformControls

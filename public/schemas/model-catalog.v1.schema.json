@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://efelibira.github.io/goztepe-campus-3d/schemas/model-catalog.v1.schema.json",
+  "title": "Göztepe Campus 3D GLB Model Catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "models"],
+  "properties": {
+    "version": { "const": 1 },
+    "models": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/model" }
+    }
+  },
+  "$defs": {
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "file"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^(?!.*\\.\\.)[a-zA-Z0-9][a-zA-Z0-9._-]*$" },
+        "name": { "type": "string", "minLength": 1, "pattern": ".*\\S.*" },
+        "file": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[a-zA-Z0-9._/-]+\\.glb$" }
+      }
+    }
+  }
+}

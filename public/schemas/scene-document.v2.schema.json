@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://efelibira.github.io/goztepe-campus-3d/schemas/scene-document.v2.schema.json",
+  "title": "Göztepe Campus 3D Scene Document",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "objects", "buildingOverrides"],
+  "properties": {
+    "version": { "const": 2 },
+    "objects": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sceneObject" }
+    },
+    "buildingOverrides": {
+      "type": "object",
+      "propertyNames": { "minLength": 1 },
+      "additionalProperties": { "$ref": "#/$defs/buildingOverride" }
+    }
+  },
+  "$defs": {
+    "vector3": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "positiveScale3": {
+      "type": "array",
+      "items": { "type": "number", "exclusiveMinimum": 0 },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "sceneObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "objectType": { "const": "glb-model" } }, "required": ["objectType"] },
+          "then": {
+            "properties": {
+              "variant": { "type": "string", "pattern": "^(?!.*\\.\\.)[a-zA-Z0-9][a-zA-Z0-9._-]*$" },
+              "properties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name"],
+                "properties": { "name": { "type": "string", "minLength": 1, "pattern": ".*\\S.*" } }
+              }
+            }
+          }
+        }
+      ],
+      "required": ["id", "objectType", "variant", "transform", "properties"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "objectType": { "type": "string", "minLength": 1 },
+        "variant": { "type": "string", "minLength": 1 },
+        "transform": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["position", "rotation", "scale"],
+          "properties": {
+            "position": { "$ref": "#/$defs/vector3" },
+            "rotation": { "$ref": "#/$defs/vector3" },
+            "scale": { "$ref": "#/$defs/positiveScale3" }
+          }
+        },
+        "properties": { "type": "object" }
+      }
+    },
+    "buildingGlbModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "assetId", "scale", "rotation", "offset"],
+      "properties": {
+        "type": { "const": "glb" },
+        "assetId": { "type": "string", "pattern": "^(?!.*\\.\\.)[a-zA-Z0-9][a-zA-Z0-9._-]*$" },
+        "scale": { "$ref": "#/$defs/positiveScale3" },
+        "rotation": { "$ref": "#/$defs/vector3", "description": "Three.js Euler radians in XYZ order." },
+        "offset": { "$ref": "#/$defs/vector3", "description": "Local scene-meter offset from the footprint-center ground origin." }
+      }
+    },
+    "buildingOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "pattern": ".*\\S.*" },
+        "heightMeters": { "type": "number", "exclusiveMinimum": 0 },
+        "facadeColor": { "$ref": "#/$defs/color" },
+        "roofColor": { "$ref": "#/$defs/color" },
+        "visible": { "type": "boolean" },
+        "model": { "$ref": "#/$defs/buildingGlbModel" }
+      }
+    }
+  }
+}

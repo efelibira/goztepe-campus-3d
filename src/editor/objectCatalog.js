@@ -19,6 +19,11 @@ export const OBJECT_TYPE_CATALOG = Object.freeze({
     variants: Object.freeze(['open-square']),
     defaultProperties: Object.freeze({ width: 4, depth: 4, height: 3.2, color: '#D6C4A8' }),
   }),
+  'glb-model': Object.freeze({
+    label: 'GLB modeli', renderer: 'gltf', defaultVariant: 'unassigned',
+    variants: Object.freeze(['unassigned']),
+    defaultProperties: Object.freeze({ name: 'GLB modeli' }),
+  }),
 })
 
 export function getObjectTypeDefinition(objectType) {

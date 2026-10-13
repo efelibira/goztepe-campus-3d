@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { geometryToShapes } from '../data/geoJsonToShape.js'
 import { projectPosition } from '../data/projectCoordinates.js'
 import type { ResolvedBuilding } from '../types/campus'
+import { PALETTE } from '../scene/palette'
 
 type Props = {
   building: ResolvedBuilding
@@ -32,7 +33,7 @@ export default function BuildingMesh({ building, selected, onSelect }: Props) {
       {geometries.map((geometry, index) => (
         <mesh key={`${building.id}-${index}`} geometry={geometry} castShadow receiveShadow>
           <meshStandardMaterial
-            color={selected ? '#e88b54' : building.color ?? '#b7c9b1'}
+            color={selected ? PALETTE.accent : building.color ?? PALETTE.building}
             roughness={0.84}
             metalness={0}
           />

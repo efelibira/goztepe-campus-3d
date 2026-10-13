@@ -2,10 +2,13 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import { geometryToShapes } from '../data/geoJsonToShape.js'
 import { projectPosition } from '../data/projectCoordinates.js'
+import { walkwayToShape } from '../data/walkways.js'
+import { PALETTE } from './palette'
+import { CAMPUS_GROUND_SIZE } from './cameraConfig.js'
 import type { CampusData, ResolvedBuilding } from '../types/campus'
 import BuildingMesh from '../components/BuildingMesh'
 
-const GROUND_SIZE = 900
+const GROUND_SIZE = CAMPUS_GROUND_SIZE
 
 type Props = {
   data: CampusData
@@ -29,26 +32,41 @@ function Ground({ data }: { data: CampusData }) {
     <>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.35, 0]} receiveShadow>
         <planeGeometry args={[GROUND_SIZE, GROUND_SIZE]} />
-        <meshStandardMaterial color="#e6e9dc" roughness={1} />
+        <meshStandardMaterial color={PALETTE.outside} roughness={1} />
       </mesh>
       <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.18, 0]} receiveShadow>
-        <meshStandardMaterial color="#dce7d4" roughness={1} side={THREE.DoubleSide} />
+        <meshStandardMaterial color={PALETTE.campus} roughness={1} side={THREE.DoubleSide} />
       </mesh>
     </>
   )
 }
 
+function Walkways({ data }: { data: CampusData }) {
+  const geometries = useMemo(() => data.walkways.features.filter((feature) => feature.properties.visible !== false).map((feature) => {
+    const shape = walkwayToShape(feature.geometry.coordinates as [number, number][], Number(feature.properties.widthMeters))
+    const geometry = new THREE.ShapeGeometry(shape)
+    geometry.computeVertexNormals()
+    return { geometry, feature }
+  }), [data.walkways])
+
+  return <group rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.12, 0]}>
+    {geometries.map(({ geometry, feature }, index) => <mesh key={feature.properties.segmentId ?? index} geometry={geometry} receiveShadow renderOrder={index + 1}>
+      <meshStandardMaterial color={feature.properties.displayColor ?? PALETTE.walkway} roughness={1} side={THREE.DoubleSide} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
+    </mesh>)}
+  </group>
+}
+
 export default function CampusScene({ data, buildings, selectedId, onSelect, onClearSelection }: Props) {
   return (
     <>
-      <color attach="background" args={['#edf0e9']} />
-      <hemisphereLight args={['#fff7e8', '#a6b7a2', 1.45]} />
-      <ambientLight intensity={0.48} />
+      <color attach="background" args={[PALETTE.background]} />
+      <hemisphereLight args={['#fffaf0', '#a9a9b4', 1.2]} />
+      <ambientLight intensity={0.38} />
       <directionalLight
         castShadow
         position={[-220, 340, 180]}
-        intensity={2.1}
-        color="#fff0d5"
+        intensity={1.65}
+        color="#fff7e8"
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
         shadow-camera-left={-420}
@@ -58,6 +76,7 @@ export default function CampusScene({ data, buildings, selectedId, onSelect, onC
         shadow-bias={-0.0002}
       />
       <Ground data={data} />
+      <Walkways data={data} />
       <group onPointerMissed={onClearSelection}>
         {buildings.map((building) => (
           <BuildingMesh
@@ -68,7 +87,7 @@ export default function CampusScene({ data, buildings, selectedId, onSelect, onC
           />
         ))}
       </group>
-      <gridHelper args={[GROUND_SIZE, 30, '#d4dbd1', '#e0e4dc']} position={[0, -0.3, 0]} />
+      <gridHelper args={[GROUND_SIZE, 30, '#aaaabd', '#d5cfc2']} position={[0, -0.3, 0]} />
     </>
   )
 }

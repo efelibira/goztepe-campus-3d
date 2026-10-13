@@ -5,6 +5,7 @@ import CampusScene from './scene/CampusScene'
 import { loadCampusData } from './data/loadCampusData'
 import { resolveBuilding } from './data/resolveBuilding'
 import type { CampusData, ResolvedBuilding } from './types/campus'
+import { CAMERA_CONFIG, CAMERA_DISTANCE_LIMITS } from './scene/cameraConfig.js'
 
 export default function App() {
   const [data, setData] = useState<CampusData | null>(null)
@@ -39,7 +40,7 @@ export default function App() {
         className="campus-canvas"
         shadows
         dpr={[1, 1.75]}
-        camera={{ position: [430, 420, 540], fov: 42, near: 0.1, far: 3000 }}
+        camera={CAMERA_CONFIG}
         onPointerMissed={() => setSelectedId(null)}
       >
         <Suspense fallback={null}>
@@ -58,8 +59,8 @@ export default function App() {
           target={[0, 0, 0]}
           enableDamping
           dampingFactor={0.08}
-          minDistance={65}
-          maxDistance={1300}
+          minDistance={CAMERA_DISTANCE_LIMITS.min}
+          maxDistance={CAMERA_DISTANCE_LIMITS.max}
           minPolarAngle={0.16}
           maxPolarAngle={Math.PI / 2.04}
         />

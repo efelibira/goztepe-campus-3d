@@ -10,6 +10,37 @@ export type MultiPolygonGeometry = {
   coordinates: Position[][][]
 }
 
+export type LineStringGeometry = { type: 'LineString'; coordinates: Position[] }
+
+export type WalkwayProperties = {
+  osmId?: string | number
+  highway?: string
+  name?: string
+  width?: string | number
+  access?: string
+  foot?: string
+  roadId?: string
+  segmentId?: string
+  widthMeters?: number
+  displayColor?: string
+  visible?: boolean
+  [key: string]: unknown
+}
+
+export type WalkwayOverride = {
+  widthMeters?: number
+  color?: string
+  visible?: boolean
+  /** Local east/north coordinates in meters; applied to this clipped segment. */
+  coordinates?: [number, number][]
+}
+
+export type WalkwayOverrides = {
+  version: number
+  coordinateSpace: 'local-meters-east-north'
+  roads: Record<string, WalkwayOverride>
+}
+
 export type CampusGeometry = PolygonGeometry | MultiPolygonGeometry
 
 export type MarmaraUnit = {
@@ -61,6 +92,8 @@ export type BuildingVisualOverrides = {
 export type CampusData = {
   buildings: FeatureCollection<CampusGeometry, BuildingProperties>
   boundary: FeatureCollection<PolygonGeometry, Record<string, never>>
+  walkways: FeatureCollection<LineStringGeometry, WalkwayProperties>
+  walkwayOverrides: WalkwayOverrides
   overrides: Record<string, BuildingOverride>
   visualOverrides: BuildingVisualOverrides
 }

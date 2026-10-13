@@ -31,6 +31,7 @@ export type PlacedObjectsLayerProps = {
   onTransformUpdate: (id: string, transform: SceneObjectTransform) => void
   onTransformStart: () => void
   onTransformEnd: () => void
+  onTransformCancel: () => void
   onDirectDragStart: (id: string) => boolean
   onDirectDragEnd: (id: string, position: [number, number, number]) => void
   onDirectDragCancel: () => void
@@ -38,7 +39,7 @@ export type PlacedObjectsLayerProps = {
 
 export default function PlacedObjectsLayer({
   objects, editable, transformEnabled, optionPressed, selectedId, placementActive, isInsideCampus, transformMode,
-  onSelect, onTransformUpdate, onTransformStart, onTransformEnd, onDirectDragStart, onDirectDragEnd, onDirectDragCancel,
+  onSelect, onTransformUpdate, onTransformStart, onTransformEnd, onTransformCancel, onDirectDragStart, onDirectDragEnd, onDirectDragCancel,
 }: PlacedObjectsLayerProps) {
   return <group>
     {objects.map((object) => {
@@ -60,6 +61,7 @@ export default function PlacedObjectsLayer({
         onTransformUpdate={onTransformUpdate}
         onTransformStart={onTransformStart}
         onTransformEnd={onTransformEnd}
+        onTransformCancel={onTransformCancel}
         onDirectDragStart={onDirectDragStart}
         onDirectDragEnd={onDirectDragEnd}
         onDirectDragCancel={onDirectDragCancel}
@@ -74,9 +76,11 @@ type PlacedObjectProps = Omit<PlacedObjectsLayerProps, 'objects' | 'selectedId'>
   selected: boolean
 }
 
-function PlacedObject({ object, model, editable, transformEnabled, optionPressed, selected, placementActive, isInsideCampus, transformMode, onSelect, onTransformUpdate, onTransformStart, onTransformEnd, onDirectDragStart, onDirectDragEnd, onDirectDragCancel }: PlacedObjectProps) {
+function PlacedObject({ object, model, editable, transformEnabled, optionPressed, selected, placementActive, isInsideCampus, transformMode, onSelect, onTransformUpdate, onTransformStart, onTransformEnd, onTransformCancel, onDirectDragStart, onDirectDragEnd, onDirectDragCancel }: PlacedObjectProps) {
   const objectRef = useRef<THREE.Group>(null!)
   const transformControlsRef = useRef<TransformControlsImpl>(null)
+  const transformStartRef = useRef<SceneObjectTransform | null>(null)
+  const cancelTransformRef = useRef<() => void>(() => {})
   const dragSessionRef = useRef<{
     pointerId: number
     startClient: { x: number; y: number }
@@ -92,7 +96,33 @@ function PlacedObject({ object, model, editable, transformEnabled, optionPressed
   const planePoint = useMemo(() => new THREE.Vector3(), [])
   const dragPlane = useMemo(() => new THREE.Plane(), [])
 
-  useEffect(() => () => { dragSessionRef.current?.finish(true) }, [])
+  useEffect(() => {
+    const cancelOnBlur = () => cancelTransformRef.current()
+    const cancelOnVisibility = () => { if (document.hidden) cancelOnBlur() }
+    const cancelOnPointer = (event: PointerEvent) => {
+      if (event.type === 'pointercancel') cancelTransformRef.current()
+    }
+    const cancelOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      const target = event.target
+      if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
+      if (!transformStartRef.current) return
+      event.preventDefault()
+      cancelTransformRef.current()
+    }
+    window.addEventListener('blur', cancelOnBlur)
+    window.addEventListener('keydown', cancelOnEscape)
+    document.addEventListener('visibilitychange', cancelOnVisibility)
+    gl.domElement.addEventListener('pointercancel', cancelOnPointer)
+    return () => {
+      window.removeEventListener('blur', cancelOnBlur)
+      window.removeEventListener('keydown', cancelOnEscape)
+      document.removeEventListener('visibilitychange', cancelOnVisibility)
+      gl.domElement.removeEventListener('pointercancel', cancelOnPointer)
+      cancelTransformRef.current()
+      dragSessionRef.current?.finish(true)
+    }
+  }, [gl.domElement])
 
   const getPlanePoint = (clientX: number, clientY: number, y: number) => {
     const rect = gl.domElement.getBoundingClientRect()
@@ -181,16 +211,73 @@ function PlacedObject({ object, model, editable, transformEnabled, optionPressed
     window.addEventListener('blur', onBlur)
   }
 
+  const readTransform = (): SceneObjectTransform | null => {
+    const target = objectRef.current
+    if (!target) return null
+    return {
+      position: [target.position.x, target.position.y, target.position.z],
+      rotation: [target.rotation.x, target.rotation.y, target.rotation.z],
+      scale: [target.scale.x, target.scale.y, target.scale.z],
+    }
+  }
+
+  const beginTransform = () => {
+    if (transformStartRef.current) return
+    const initial = readTransform()
+    if (!initial) return
+    transformStartRef.current = initial
+    onTransformStart()
+  }
+
+  const finishTransform = () => {
+    const initial = transformStartRef.current
+    const final = readTransform()
+    if (!initial || !final) return
+    transformStartRef.current = null
+    const changed = (['position', 'rotation', 'scale'] as const).some((field) =>
+      initial[field].some((value, index) => Math.abs(value - final[field][index]) > 1e-9),
+    )
+    try {
+      if (changed) onTransformUpdate(object.id, final)
+      onTransformEnd()
+    } catch {
+      targetRestore(initial)
+      onTransformCancel()
+    }
+  }
+
+  const cancelTransform = () => {
+    const initial = transformStartRef.current
+    const target = objectRef.current
+    if (!initial) return
+    transformStartRef.current = null
+    if (target) targetRestore(initial)
+    onTransformCancel()
+
+    // End TransformControls' owner-document pointer session after clearing our
+    // snapshot, so its mouseUp event cannot commit the canceled transform.
+    const pointerUp = typeof PointerEvent === 'undefined'
+      ? Object.assign(new Event('pointerup'), { button: 0, clientX: 0, clientY: 0 }) as PointerEvent
+      : new PointerEvent('pointerup', { button: 0 })
+    gl.domElement.ownerDocument.dispatchEvent(pointerUp)
+  }
+
+  cancelTransformRef.current = cancelTransform
+
+  const targetRestore = (transform: SceneObjectTransform) => {
+    const target = objectRef.current
+    if (!target) return
+    target.position.set(...transform.position)
+    target.rotation.set(...transform.rotation)
+    target.scale.set(...transform.scale)
+    target.updateMatrixWorld()
+  }
+
   const updateTransform = () => {
     const target = objectRef.current
     if (!target) return
     target.position.y = Math.max(0, target.position.y)
     target.scale.set(Math.max(0.05, target.scale.x), Math.max(0.05, target.scale.y), Math.max(0.05, target.scale.z))
-    onTransformUpdate(object.id, {
-      position: [target.position.x, target.position.y, target.position.z],
-      rotation: [target.rotation.x, target.rotation.y, target.rotation.z],
-      scale: [target.scale.x, target.scale.y, target.scale.z],
-    })
   }
 
   return <>
@@ -216,8 +303,8 @@ function PlacedObject({ object, model, editable, transformEnabled, optionPressed
       axis={transformMode === 'rotate' ? 'Y' : undefined}
       size={1.25}
       ref={transformControlsRef}
-      onMouseDown={onTransformStart}
-      onMouseUp={onTransformEnd}
+      onMouseDown={beginTransform}
+      onMouseUp={finishTransform}
       onObjectChange={updateTransform}
     />}
   </>

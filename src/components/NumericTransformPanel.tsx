@@ -37,6 +37,10 @@ export default function NumericTransformPanel({ transform, disabled = false, onC
       return
     }
     setErrors((current) => ({ ...current, [id]: '' }))
+    const numericValue = Number(drafts[id])
+    if (Number.isFinite(numericValue)) {
+      setDrafts((current) => ({ ...current, [id]: numericValue.toFixed(2) }))
+    }
   }
 
   return <div className="numeric-transform-panel" aria-label="Sayısal nesne dönüşümü">

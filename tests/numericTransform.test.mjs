@@ -16,7 +16,7 @@ test('numeric transform edits update position and scale directly and convert deg
 
   result = applyNumericTransformEdit(result.transform, 'rotation', 1, '90')
   assert.ok(Math.abs(result.transform.rotation[1] - Math.PI / 2) < 1e-12)
-  assert.equal(formatTransformInput(result.transform, 'rotation', 1), '90')
+  assert.equal(formatTransformInput(result.transform, 'rotation', 1), '90.00')
 
   result = applyNumericTransformEdit(result.transform, 'scale', 2, '1.5')
   assert.deepEqual(result.transform.scale, [1, 1, 1.5])

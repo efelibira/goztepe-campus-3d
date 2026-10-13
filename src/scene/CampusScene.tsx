@@ -33,6 +33,7 @@ type Props = {
   onTransformUpdate: (id: string, transform: SceneObjectRecord['transform']) => void
   onTransformStart: () => void
   onTransformEnd: () => void
+  onTransformCancel: () => void
   onDirectDragStart: (id: string) => boolean
   onDirectDragEnd: (id: string, position: [number, number, number]) => void
   onDirectDragCancel: () => void
@@ -79,7 +80,7 @@ function Walkways({ data }: { data: CampusData }) {
 export default function CampusScene({
   data, buildings, selectedId, sceneObjects, editMode, controlMode, optionPressed, placementActive, selectedObjectId, transformMode,
   onSelect, onClearSelection, onSelectObject, onPlaceObject, onTransformUpdate, onTransformStart, onTransformEnd,
-  onDirectDragStart, onDirectDragEnd, onDirectDragCancel,
+  onTransformCancel, onDirectDragStart, onDirectDragEnd, onDirectDragCancel,
 }: Props) {
   const boundary = data.boundary.features[0].geometry
   const isInsideCampus = useMemo(() => createCampusContainment(boundary), [boundary])
@@ -128,6 +129,7 @@ export default function CampusScene({
         onTransformUpdate={onTransformUpdate}
         onTransformStart={onTransformStart}
         onTransformEnd={onTransformEnd}
+        onTransformCancel={onTransformCancel}
         onDirectDragStart={onDirectDragStart}
         onDirectDragEnd={onDirectDragEnd}
         onDirectDragCancel={onDirectDragCancel}

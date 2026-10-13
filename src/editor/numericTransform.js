@@ -3,7 +3,7 @@ const MIN_SCALE = 0.05
 
 export function formatTransformInput(transform, field, index) {
   const value = transform[field][index]
-  return String(field === 'rotation' ? value * 180 / Math.PI : value)
+  return (field === 'rotation' ? value * 180 / Math.PI : value).toFixed(2)
 }
 
 export function applyNumericTransformEdit(transform, field, index, rawValue) {

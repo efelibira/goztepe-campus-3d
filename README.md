@@ -83,6 +83,8 @@ Run the automated data/model tests with `npm test`.
 - In either edit mode, right-drag pans the camera. Scroll-wheel and trackpad scrolling/pinching continue to zoom. During ground placement, click to place; Option + left-drag remains available for camera rotation.
 - Option state is read from keyboard and pointer events and cleared when the window loses focus or the page is hidden.
 - The selected-object panel shows live X/Y/Z position in meters, rotation in degrees, and scale. Enter or leaving a numeric field commits the value; each committed field change is one undo step. Y cannot go below zero and scale must be at least `0.05`.
+- Placement stays active after each click so the same object type can be placed repeatedly; press **Escape** to close the active placement tool. The editor shortcuts are **1–4** (catalog object types), **D** (duplicate the selected object), **Z** (undo), **Y** (redo), and **Backspace** (delete the selected object). They work only while the editor is focused and edit mode is active, and are ignored in text/numeric fields or while Cmd, Ctrl, Option, or Shift is held.
+- Numeric position, rotation, and scale values are shown with two decimal places.
 
 Transform gizmo note: ground and walkway meshes have no pointer handlers during normal editing; the placement surface receives clicks only while placement is armed. Drei's TransformControls raycasts its own handles and draws them without depth testing. The editor therefore preserves selection when a gizmo drag is not a hit in React Three Fiber's separate pointer-event graph, which prevents a floor-level drag from detaching the control.
 

@@ -47,6 +47,7 @@ h1 { margin: 6px 0; font-size: 21px; line-height: 1.15; }
 .editor-panel-heading { display: flex; align-items: center; justify-content: space-between; padding-right: 34px; }
 .editor-panel-heading strong { display: block; margin-top: 4px; color: #42445f; font-size: 15px; }
 .object-palette { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.object-palette kbd { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-right: 3px; border: 1px solid currentColor; border-radius: 5px; font: inherit; font-size: 9px; opacity: .8; }
 .control-mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; border-radius: 11px; background: #ece7dc; }
 .control-mode-switch .tool-button { border-color: transparent; background: transparent; }
 .control-mode-switch .tool-button.active { border-color: #555879; background: #555879; color: white; }
@@ -54,6 +55,7 @@ h1 { margin: 6px 0; font-size: 21px; line-height: 1.15; }
 .tool-button:hover:not(:disabled), .tool-button.active { border-color: #555879; background: #555879; color: white; }
 .tool-button:disabled { opacity: .45; cursor: not-allowed; }
 .editor-hint { margin: 0; color: #727184; font-size: 11px; line-height: 1.45; }
+.shortcut-hint { padding-top: 2px; font-size: 10px; }
 .selected-object-info { display: grid; gap: 8px; padding: 11px; border: 1px solid rgba(85, 88, 121, .12); border-radius: 11px; background: #f7f3e8; color: #45465e; font-size: 12px; }
 .selected-object-info code { overflow-wrap: anywhere; color: #77778c; font-size: 9px; }
 .numeric-transform-panel { display: grid; gap: 7px; }

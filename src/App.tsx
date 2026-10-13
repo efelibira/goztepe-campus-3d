@@ -16,6 +16,7 @@ import type { EditorControlMode } from './editor/orbitMouseBindings.js'
 import { applyNumericTransformEdit } from './editor/numericTransform.js'
 import type { NumericTransformField } from './editor/numericTransform.js'
 import NumericTransformPanel from './components/NumericTransformPanel'
+import { createCampusContainment } from './data/campusBoundary.js'
 
 function getLocalStorageSafely(): Storage | undefined {
   try { return window.localStorage }
@@ -64,17 +65,68 @@ export default function App() {
   const selected = buildings.find((building) => building.id === selectedId) ?? null
   const estimatedCount = buildings.filter((building) => building.confidenceLabel !== 'Doğrulanmış yükseklik düzeltmesi').length
   const selectedObject = sceneState.document.objects.find((object) => object.id === selectedObjectId) ?? null
+  const isInsideCampus = useMemo(() => {
+    const boundary = data?.boundary.features[0]?.geometry
+    return boundary ? createCampusContainment(boundary) : null
+  }, [data])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!editMode || transformDragging) return
-      const target = event.target as HTMLElement | null
-      if (target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName ?? '')) return
-      if (event.key === 'Escape') { setPlacementType(null); setSelectedObjectId(null); return }
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+      if (!editMode || transformDragging || !document.hasFocus()) return
+      // Leave operating-system/browser modifier shortcuts untouched.
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+      const target = event.target
+      if (target instanceof HTMLElement && (
+        target.isContentEditable
+        || target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')
+      )) return
+
+      const key = event.key.toLowerCase()
+      if (/^[1-4]$/.test(event.key)) {
+        const objectType = Object.keys(OBJECT_TYPE_CATALOG)[Number(event.key) - 1]
+        if (objectType) {
+          event.preventDefault()
+          setPlacementType(objectType)
+          setSelectedObjectId(null)
+        }
+      } else if (event.key === 'Escape') {
+        if (placementType) {
+          event.preventDefault()
+          setPlacementType(null)
+        }
+      } else if (key === 'd' && selectedObject) {
+        const [x, y, z] = selectedObject.transform.position
+        const offsets: [number, number][] = [[2, 0], [0, 2], [-2, 0], [0, -2], [2, 2], [-2, 2], [2, -2], [-2, -2]]
+        const offset = offsets.find(([dx, dz]) => !isInsideCampus || isInsideCampus(x + dx, z + dz))
+        if (!offset) {
+          setEditorError('Kampüs sınırı içinde çoğaltma konumu bulunamadı.')
+          return
+        }
         event.preventDefault()
-        if (event.shiftKey) sceneStore.redo()
-        else sceneStore.undo()
+        try {
+          const duplicate = createSceneObject(selectedObject.objectType, {
+            variant: selectedObject.variant,
+            transform: {
+              position: [x + offset[0], y, z + offset[1]],
+              rotation: [...selectedObject.transform.rotation],
+              scale: [...selectedObject.transform.scale],
+            },
+            properties: JSON.parse(JSON.stringify(selectedObject.properties)),
+          })
+          const id = sceneStore.addObject(duplicate)
+          setSelectedObjectId(id)
+          setSelectedId(null)
+          setEditorError('')
+        } catch (cause) {
+          setEditorError(cause instanceof Error ? cause.message : 'Nesne çoğaltılamadı.')
+        }
+      } else if (key === 'z') {
+        event.preventDefault()
+        sceneStore.undo()
+        setSelectedObjectId(null)
+      } else if (key === 'y') {
+        event.preventDefault()
+        sceneStore.redo()
         setSelectedObjectId(null)
       } else if ((event.key === 'Delete' || event.key === 'Backspace') && selectedObjectId) {
         event.preventDefault()
@@ -84,7 +136,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [editMode, sceneStore, selectedObjectId, transformDragging])
+  }, [editMode, isInsideCampus, placementType, sceneStore, selectedObject, selectedObjectId, transformDragging])
 
   useEffect(() => {
     const syncOptionState = (pressed: boolean) => {
@@ -130,7 +182,6 @@ export default function App() {
       const object = createSceneObject(placementType, { transform: { position } })
       const id = sceneStore.addObject(object)
       setSelectedObjectId(id)
-      setPlacementType(null)
       setSelectedId(null)
       setEditorError('')
     } catch (cause) {
@@ -233,6 +284,10 @@ export default function App() {
               onTransformUpdate={(id, transform) => sceneStore.updateObject(id, { transform })}
               onTransformStart={() => { sceneStore.beginTransaction(); setTransformDragging(true) }}
               onTransformEnd={endTransform}
+              onTransformCancel={() => {
+                sceneStore.cancelTransaction()
+                setTransformDragging(false)
+              }}
               onDirectDragStart={() => {
                 const started = sceneStore.beginTransaction()
                 if (started) setTransformDragging(true)
@@ -302,13 +357,14 @@ export default function App() {
         </div>
         <p className="editor-hint">{controlMode === 'object' ? 'Nesne seçimi ve dönüşüm etkin. Option basılıyken sol sürükleme kamerayı döndürür.' : 'Sol sürükleme kamerayı döndürür; nesneleri seçebilir, ancak dönüştüremezsiniz.'}</p>
         <div className="object-palette">
-          {Object.entries(OBJECT_TYPE_CATALOG).map(([type, definition]) => <button
+          {Object.entries(OBJECT_TYPE_CATALOG).map(([type, definition], index) => <button
             key={type}
             className={placementType === type ? 'tool-button active' : 'tool-button'}
             onClick={() => { setPlacementType((current) => current === type ? null : type); setSelectedObjectId(null) }}
-          >+ {definition.label}</button>)}
+          ><kbd>{index + 1}</kbd> + {definition.label}</button>)}
         </div>
-        <p className="editor-hint">{placementType ? 'Kampüs zeminine tıklayarak yerleştir. Esc ile iptal et.' : 'Bir nesne seç veya yerleştirmek için tür seç.'}</p>
+        <p className="editor-hint">{placementType ? 'Sürekli yerleştirme açık. Her tıklama yeni bir nesne ekler; Esc aracı kapatır.' : 'Bir nesne seç veya yerleştirmek için tür seç.'}</p>
+        <p className="editor-hint shortcut-hint">1–4 tür seç · D çoğalt · Z geri al · Y yinele · Backspace sil</p>
         {selectedObject && <div className="selected-object-info">
           <strong>{OBJECT_TYPE_CATALOG[selectedObject.objectType]?.label ?? selectedObject.objectType}</strong>
           <code>{selectedObject.id}</code>

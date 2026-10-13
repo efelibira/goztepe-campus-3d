@@ -5,14 +5,15 @@ const METERS_PER_DEGREE_LONGITUDE = 111_320
 
 /**
  * Project WGS84 longitude/latitude into a local meter plane.
- * X points east and Z points north; Three.js Y is reserved for elevation.
+ * Shape-plane X points east and Y points north. The scene's -90 degree
+ * X rotation maps that northing to Three.js world -Z; world Y is elevation.
  * @param {[number, number]} position [longitude, latitude]
- * @returns {[number, number]} [x, z] in meters
+ * @returns {[number, number]} [east, north] in meters on the shape plane
  */
 export function projectPosition([longitude, latitude]) {
   const [originLongitude, originLatitude] = CAMPUS_ORIGIN
   const latitudeRadians = (originLatitude * Math.PI) / 180
   const x = (longitude - originLongitude) * METERS_PER_DEGREE_LONGITUDE * Math.cos(latitudeRadians)
   const northing = (latitude - originLatitude) * METERS_PER_DEGREE_LATITUDE
-  return [x, -northing]
+  return [x, northing]
 }
